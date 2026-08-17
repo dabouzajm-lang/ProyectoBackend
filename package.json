@@ -1,0 +1,13 @@
+{
+  "name": "service-manager",
+  "version": "1.0.0",
+  "description": "Gestor de servicios para un sistema de turnos y reservas",
+  "type": "module",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.1"
+  }
+}

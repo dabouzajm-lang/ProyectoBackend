@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1,
+    "name": "Consulta inicial",
+    "description": "Consulta general con un profesional.",
+    "duration": 60,
+    "price": 15000,
+    "category": "Consulta",
+    "available": true
+  },
+  {
+    "id": 2,
+    "name": "Sesión de entrenamiento",
+    "description": "Sesión personalizada de entrenamiento.",
+    "duration": 60,
+    "price": 12000,
+    "category": "Entrenamiento",
+    "available": true
+  },
+  {
+    "id": 3,
+    "name": "Masaje deportivo",
+    "description": "Sesión de masaje orientada a la recuperación muscular.",
+    "duration": 45,
+    "price": 18000,
+    "category": "Bienestar",
+    "available": false
+  }
+]
