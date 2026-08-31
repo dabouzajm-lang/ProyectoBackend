@@ -22,8 +22,28 @@ class ServiceManager {
     }
   }
 
-  getServices() {
-    return this.services;
+  getServices(filters = {}) {
+    let services = [...this.services];
+
+    if (filters.category) {
+      services = services.filter(
+        (service) =>
+          service.category.toLowerCase() ===
+          filters.category.toLowerCase()
+      );
+    }
+
+    if (filters.available !== undefined) {
+      const available =
+        filters.available === true ||
+        filters.available === "true";
+
+      services = services.filter(
+        (service) => service.available === available
+      );
+    }
+
+    return services;
   }
 
   getServiceById(id) {

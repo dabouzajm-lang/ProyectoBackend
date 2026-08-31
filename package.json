@@ -1,13 +1,14 @@
 {
   "name": "service-manager",
   "version": "1.0.0",
-  "description": "Gestor de servicios para un sistema de turnos y reservas",
+  "description": "API REST para gestionar servicios de un sistema de turnos y reservas",
   "type": "module",
-  "main": "src/app.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node src/app.js"
+    "start": "node src/server.js"
   },
   "dependencies": {
-    "dotenv": "^17.2.1"
+    "dotenv": "^17.2.1",
+    "express": "^5.2.1"
   }
 }
