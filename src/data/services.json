@@ -25,5 +25,14 @@
     "price": 18000,
     "category": "Bienestar",
     "available": false
+  },
+  {
+    "id": 4,
+    "name": "Kinesiología",
+    "description": "Sesión de recuperación y movilidad.",
+    "duration": 50,
+    "price": 20000,
+    "category": "Salud",
+    "available": true
   }
 ]
