@@ -4,13 +4,16 @@ Primera versión funcional de una API REST para gestionar **servicios** y **rese
 
 El proyecto utiliza archivos JSON como sistema de persistencia, por lo que los servicios y las reservas creadas o modificadas se conservan después de reiniciar el servidor.
 
+Las operaciones de lectura y escritura de archivos se realizan de forma asíncrona utilizando la API de Promises de FileSystem (`fs/promises`) junto con `async/await`, evitando operaciones sincrónicas que puedan bloquear el event loop de Node.js.
+
 ## Tecnologías utilizadas
 
 - Node.js
 - Express
 - JavaScript
 - ECMAScript Modules (ESM)
-- FileSystem (`fs`)
+- FileSystem con Promises (`fs/promises`)
+- Async/Await
 - dotenv
 - JSON
 
@@ -94,7 +97,7 @@ ProyectoBackend/
 
 ## Persistencia con FileSystem
 
-Los datos de la aplicación se almacenan en archivos JSON utilizando el módulo `fs` de Node.js.
+Los datos de la aplicación se almacenan en archivos JSON utilizando la API de Promises de FileSystem (`fs/promises`) de Node.js.
 
 Los servicios se almacenan en:
 
@@ -108,7 +111,11 @@ Las reservas se almacenan en:
 src/data/bookings.json
 ```
 
-Las operaciones que modifican los datos actualizan estos archivos, por lo que la información persiste aunque el servidor sea detenido y posteriormente reiniciado.
+Las operaciones de lectura y escritura se realizan de forma asíncrona mediante `readFile` y `writeFile` junto con `async/await`.
+
+De esta manera, las operaciones sobre archivos no utilizan métodos sincrónicos como `readFileSync` o `writeFileSync`, evitando bloquear el event loop mientras el servidor espera la finalización de las operaciones de entrada/salida.
+
+Las operaciones que modifican los datos actualizan los archivos JSON correspondientes, por lo que la información persiste aunque el servidor sea detenido y posteriormente reiniciado.
 
 ---
 
@@ -156,13 +163,13 @@ También permite filtrar por categoría:
 GET /api/services?category=Salud
 ```
 
-por disponibilidad:
+Por disponibilidad:
 
 ```http
 GET /api/services?available=true
 ```
 
-o combinar ambos filtros:
+O combinar ambos filtros:
 
 ```http
 GET /api/services?category=Salud&available=true
@@ -178,9 +185,17 @@ Ejemplo:
 GET /api/services/1
 ```
 
-Si existe, devuelve `200 OK`.
+Si existe, devuelve:
 
-Si no existe, devuelve `404 Not Found`.
+```text
+200 OK
+```
+
+Si no existe, devuelve:
+
+```text
+404 Not Found
+```
 
 ### POST `/api/services`
 
@@ -211,6 +226,13 @@ Los campos requeridos son:
 - `available`
 
 Los datos son validados antes de crear el servicio.
+
+Las principales validaciones contemplan:
+
+- `name`, `description` y `category` deben ser textos.
+- `duration` debe ser un número mayor a `0`.
+- `price` debe ser un número mayor o igual a `0`.
+- `available` debe ser un valor booleano (`true` o `false`).
 
 Si la creación es correcta, devuelve:
 
@@ -245,9 +267,17 @@ Body:
 
 El `id` del servicio no puede modificarse.
 
-Si el servicio existe, devuelve `200 OK`.
+Si el servicio existe, devuelve:
 
-Si no existe, devuelve `404 Not Found`.
+```text
+200 OK
+```
+
+Si no existe, devuelve:
+
+```text
+404 Not Found
+```
 
 ### DELETE `/api/services/:sid`
 
@@ -259,9 +289,17 @@ Ejemplo:
 DELETE /api/services/1
 ```
 
-Si el servicio existe, devuelve `200 OK`.
+Si el servicio existe, devuelve:
 
-Si no existe, devuelve `404 Not Found`.
+```text
+200 OK
+```
+
+Si no existe, devuelve:
+
+```text
+404 Not Found
+```
 
 ---
 
@@ -426,7 +464,11 @@ Implementa los métodos:
 - `updateService`
 - `deleteService`
 
-Las operaciones de creación, actualización y eliminación son persistidas utilizando FileSystem.
+Las operaciones de lectura y escritura se realizan de forma asíncrona mediante `readFile` y `writeFile` de `fs/promises`.
+
+Los métodos del manager utilizan `async/await` para gestionar las operaciones de FileSystem sin bloquear el event loop de Node.js.
+
+Cada operación trabaja con los datos almacenados en `services.json`, manteniendo el archivo como fuente de persistencia de los servicios.
 
 ## `BookingManager`
 
@@ -440,6 +482,8 @@ Implementa los métodos:
 
 Al agregar un servicio a una reserva, si el servicio ya se encuentra asociado, se incrementa su propiedad `quantity`.
 
+Las reservas son leídas y almacenadas de forma asíncrona en `bookings.json` mediante `fs/promises` y `async/await`.
+
 ---
 
 # Códigos de estado HTTP
@@ -452,6 +496,40 @@ La API utiliza los siguientes códigos principales:
 | `201` | Recurso creado correctamente |
 | `400` | Datos faltantes o inválidos |
 | `404` | Recurso no encontrado |
+| `500` | Error interno del servidor |
+
+---
+
+# Manejo asíncrono de archivos
+
+La persistencia utiliza la API basada en Promises de FileSystem:
+
+```js
+import { readFile, writeFile } from "fs/promises";
+```
+
+Las operaciones de entrada/salida se realizan utilizando `async/await`.
+
+Ejemplo de lectura:
+
+```js
+const data = await readFile(
+  filePath,
+  "utf-8"
+);
+```
+
+Ejemplo de escritura:
+
+```js
+await writeFile(
+  filePath,
+  JSON.stringify(data, null, 2),
+  "utf-8"
+);
+```
+
+Este enfoque permite que Node.js continúe atendiendo otras tareas mientras espera que finalicen las operaciones de entrada/salida, en lugar de bloquear el event loop mediante operaciones sincrónicas como `readFileSync` y `writeFileSync`.
 
 ---
 

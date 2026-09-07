@@ -8,9 +8,9 @@ const bookingManager = new BookingManager();
 const serviceManager = new ServiceManager();
 
 // POST /api/bookings
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const newBooking = bookingManager.createBooking(
+    const newBooking = await bookingManager.createBooking(
       req.body
     );
 
@@ -23,44 +23,59 @@ router.post("/", (req, res) => {
 });
 
 // GET /api/bookings/:bid
-router.get("/:bid", (req, res) => {
-  const { bid } = req.params;
+router.get("/:bid", async (req, res) => {
+  try {
+    const { bid } = req.params;
 
-  const booking = bookingManager.getBookingById(bid);
+    const booking = await bookingManager.getBookingById(bid);
 
-  if (!booking) {
-    return res.status(404).json({
-      error: "Reserva no encontrada"
+    if (!booking) {
+      return res.status(404).json({
+        error: "Reserva no encontrada"
+      });
+    }
+
+    res.status(200).json(booking);
+  } catch (error) {
+    res.status(500).json({
+      error: "Error al obtener la reserva"
     });
   }
-
-  res.status(200).json(booking);
 });
 
 // POST /api/bookings/:bid/services/:sid
-router.post("/:bid/services/:sid", (req, res) => {
-  const { bid, sid } = req.params;
+router.post("/:bid/services/:sid", async (req, res) => {
+  try {
+    const { bid, sid } = req.params;
 
-  const booking = bookingManager.getBookingById(bid);
+    const booking = await bookingManager.getBookingById(bid);
 
-  if (!booking) {
-    return res.status(404).json({
-      error: "Reserva no encontrada"
+    if (!booking) {
+      return res.status(404).json({
+        error: "Reserva no encontrada"
+      });
+    }
+
+    const service = await serviceManager.getServiceById(sid);
+
+    if (!service) {
+      return res.status(404).json({
+        error: "Servicio no encontrado"
+      });
+    }
+
+    const updatedBooking =
+      await bookingManager.addServiceToBooking(
+        bid,
+        sid
+      );
+
+    res.status(200).json(updatedBooking);
+  } catch (error) {
+    res.status(500).json({
+      error: "Error al agregar el servicio a la reserva"
     });
   }
-
-  const service = serviceManager.getServiceById(sid);
-
-  if (!service) {
-    return res.status(404).json({
-      error: "Servicio no encontrado"
-    });
-  }
-
-  const updatedBooking =
-    bookingManager.addServiceToBooking(bid, sid);
-
-  res.status(200).json(updatedBooking);
 });
 
 export default router;

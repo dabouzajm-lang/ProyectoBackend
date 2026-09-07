@@ -1,4 +1,4 @@
-import fs from "fs";
+import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -11,13 +11,13 @@ const bookingsPath = path.join(
 );
 
 class BookingManager {
-  constructor() {
-    this.bookings = this.loadBookings();
-  }
-
-  loadBookings() {
+  async loadBookings() {
     try {
-      const data = fs.readFileSync(bookingsPath, "utf-8");
+      const data = await readFile(
+        bookingsPath,
+        "utf-8"
+      );
+
       return JSON.parse(data);
     } catch (error) {
       console.error(
@@ -29,11 +29,11 @@ class BookingManager {
     }
   }
 
-  saveBookings() {
+  async saveBookings(bookings) {
     try {
-      fs.writeFileSync(
+      await writeFile(
         bookingsPath,
-        JSON.stringify(this.bookings, null, 2),
+        JSON.stringify(bookings, null, 2),
         "utf-8"
       );
     } catch (error) {
@@ -46,7 +46,9 @@ class BookingManager {
     }
   }
 
-  createBooking(bookingData) {
+  async createBooking(bookingData) {
+    const bookings = await this.loadBookings();
+
     const requiredFields = [
       "clientName",
       "clientEmail",
@@ -71,9 +73,9 @@ class BookingManager {
     }
 
     const newId =
-      this.bookings.length > 0
+      bookings.length > 0
         ? Math.max(
-            ...this.bookings.map(
+            ...bookings.map(
               (booking) => booking.id
             )
           ) + 1
@@ -91,18 +93,21 @@ class BookingManager {
         : []
     };
 
-    this.bookings.push(newBooking);
+    bookings.push(newBooking);
 
-    this.saveBookings();
+    await this.saveBookings(bookings);
 
     return newBooking;
   }
 
-  getBookingById(id) {
+  async getBookingById(id) {
+    const bookings = await this.loadBookings();
+
     const bookingId = Number(id);
 
-    const booking = this.bookings.find(
-      (booking) => booking.id === bookingId
+    const booking = bookings.find(
+      (booking) =>
+        booking.id === bookingId
     );
 
     if (!booking) {
@@ -112,17 +117,24 @@ class BookingManager {
     return booking;
   }
 
-  addServiceToBooking(bookingId, serviceId) {
-    const booking = this.getBookingById(bookingId);
+  async addServiceToBooking(bookingId, serviceId) {
+    const bookings = await this.loadBookings();
+
+    const numericBookingId = Number(bookingId);
+    const numericServiceId = Number(serviceId);
+
+    const booking = bookings.find(
+      (booking) =>
+        booking.id === numericBookingId
+    );
 
     if (!booking) {
       return null;
     }
 
-    const numericServiceId = Number(serviceId);
-
     const existingService = booking.services.find(
-      (item) => item.service === numericServiceId
+      (item) =>
+        item.service === numericServiceId
     );
 
     if (existingService) {
@@ -134,7 +146,7 @@ class BookingManager {
       });
     }
 
-    this.saveBookings();
+    await this.saveBookings(bookings);
 
     return booking;
   }

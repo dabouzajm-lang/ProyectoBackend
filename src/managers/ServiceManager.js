@@ -1,4 +1,4 @@
-import fs from "fs";
+import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -11,13 +11,9 @@ const servicesPath = path.join(
 );
 
 class ServiceManager {
-  constructor() {
-    this.services = this.loadServices();
-  }
-
-  loadServices() {
+  async loadServices() {
     try {
-      const data = fs.readFileSync(
+      const data = await readFile(
         servicesPath,
         "utf-8"
       );
@@ -33,11 +29,11 @@ class ServiceManager {
     }
   }
 
-  saveServices() {
+  async saveServices(services) {
     try {
-      fs.writeFileSync(
+      await writeFile(
         servicesPath,
-        JSON.stringify(this.services, null, 2),
+        JSON.stringify(services, null, 2),
         "utf-8"
       );
     } catch (error) {
@@ -50,10 +46,8 @@ class ServiceManager {
     }
   }
 
-  getServices(filters = {}) {
-    this.services = this.loadServices();
-
-    let services = [...this.services];
+  async getServices(filters = {}) {
+    let services = await this.loadServices();
 
     if (filters.category) {
       services = services.filter(
@@ -77,12 +71,12 @@ class ServiceManager {
     return services;
   }
 
-  getServiceById(id) {
-    this.services = this.loadServices();
+  async getServiceById(id) {
+    const services = await this.loadServices();
 
     const serviceId = Number(id);
 
-    const service = this.services.find(
+    const service = services.find(
       (service) =>
         service.id === serviceId
     );
@@ -94,8 +88,8 @@ class ServiceManager {
     return service;
   }
 
-  addService(serviceData) {
-    this.services = this.loadServices();
+  async addService(serviceData) {
+    const services = await this.loadServices();
 
     const requiredFields = [
       "name",
@@ -158,9 +152,9 @@ class ServiceManager {
     }
 
     const newId =
-      this.services.length > 0
+      services.length > 0
         ? Math.max(
-            ...this.services.map(
+            ...services.map(
               (service) => service.id
             )
           ) + 1
@@ -176,19 +170,19 @@ class ServiceManager {
       available: serviceData.available
     };
 
-    this.services.push(newService);
+    services.push(newService);
 
-    this.saveServices();
+    await this.saveServices(services);
 
     return newService;
   }
 
-  updateService(id, updatedData) {
-    this.services = this.loadServices();
+  async updateService(id, updatedData) {
+    const services = await this.loadServices();
 
     const serviceId = Number(id);
 
-    const serviceIndex = this.services.findIndex(
+    const serviceIndex = services.findIndex(
       (service) =>
         service.id === serviceId
     );
@@ -198,7 +192,7 @@ class ServiceManager {
     }
 
     const currentService =
-      this.services[serviceIndex];
+      services[serviceIndex];
 
     const updatedService = {
       ...currentService,
@@ -206,20 +200,20 @@ class ServiceManager {
       id: currentService.id
     };
 
-    this.services[serviceIndex] =
+    services[serviceIndex] =
       updatedService;
 
-    this.saveServices();
+    await this.saveServices(services);
 
     return updatedService;
   }
 
-  deleteService(id) {
-    this.services = this.loadServices();
+  async deleteService(id) {
+    const services = await this.loadServices();
 
     const serviceId = Number(id);
 
-    const serviceIndex = this.services.findIndex(
+    const serviceIndex = services.findIndex(
       (service) =>
         service.id === serviceId
     );
@@ -229,9 +223,9 @@ class ServiceManager {
     }
 
     const [deletedService] =
-      this.services.splice(serviceIndex, 1);
+      services.splice(serviceIndex, 1);
 
-    this.saveServices();
+    await this.saveServices(services);
 
     return deletedService;
   }
