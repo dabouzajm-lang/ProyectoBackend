@@ -1,8 +1,10 @@
 # Sistema Backend de Turnos y Reservas
 
-Primera versión funcional de una API REST para gestionar **servicios** y **reservas**, desarrollada con Node.js, Express y FileSystem.
+API REST para gestionar **servicios** y **reservas**, desarrollada con Node.js, Express y FileSystem.
 
 El proyecto utiliza archivos JSON como sistema de persistencia, por lo que los servicios y las reservas creadas o modificadas se conservan después de reiniciar el servidor.
+
+La API está organizada mediante una arquitectura por capas que separa las responsabilidades entre **routers, controllers y managers**, facilitando el mantenimiento y crecimiento del proyecto.
 
 Las operaciones de lectura y escritura de archivos se realizan de forma asíncrona utilizando la API de Promises de FileSystem (`fs/promises`) junto con `async/await`, evitando operaciones sincrónicas que puedan bloquear el event loop de Node.js.
 
@@ -70,6 +72,8 @@ La API quedará disponible en:
 http://localhost:8080
 ```
 
+---
+
 ## Estructura del proyecto
 
 ```text
@@ -77,15 +81,18 @@ ProyectoBackend/
 ├── src/
 │   ├── config/
 │   │   └── env.config.js
-│   ├── data/
-│   │   ├── services.json
-│   │   └── bookings.json
+│   ├── controllers/
+│   │   ├── services.controller.js
+│   │   └── bookings.controller.js
 │   ├── managers/
 │   │   ├── ServiceManager.js
 │   │   └── BookingManager.js
 │   ├── routes/
 │   │   ├── services.router.js
 │   │   └── bookings.router.js
+│   ├── data/
+│   │   ├── services.json
+│   │   └── bookings.json
 │   ├── app.js
 │   └── server.js
 ├── .env.example
@@ -95,27 +102,148 @@ ProyectoBackend/
 └── README.md
 ```
 
-## Persistencia con FileSystem
+---
 
-Los datos de la aplicación se almacenan en archivos JSON utilizando la API de Promises de FileSystem (`fs/promises`) de Node.js.
+# Arquitectura de la API
 
-Los servicios se almacenan en:
+La aplicación está organizada en diferentes capas para mantener una clara separación de responsabilidades.
+
+El flujo general de una petición es:
+
+```text
+Cliente
+   ↓
+Router
+   ↓
+Controller
+   ↓
+Manager
+   ↓
+Archivo JSON
+```
+
+La respuesta realiza el camino inverso:
+
+```text
+Archivo JSON
+   ↓
+Manager
+   ↓
+Controller
+   ↓
+Cliente
+```
+
+## Routers
+
+Los routers se encargan exclusivamente de definir los endpoints de la API y conectarlos con las funciones correspondientes de los controllers.
+
+No contienen lógica de negocio, acceso a archivos JSON ni manejo directo de los datos.
+
+Los routers disponibles son:
+
+```text
+src/routes/services.router.js
+src/routes/bookings.router.js
+```
+
+Ejemplo conceptual:
+
+```js
+router.get("/", getServices);
+router.get("/:sid", getServiceById);
+router.post("/", createService);
+```
+
+## Controllers
+
+Los controllers funcionan como intermediarios entre las rutas y los managers.
+
+Sus responsabilidades incluyen:
+
+- Leer información proveniente de `req.params`.
+- Leer filtros desde `req.query`.
+- Leer datos enviados mediante `req.body`.
+- Llamar al manager correspondiente.
+- Manejar los códigos de estado HTTP.
+- Enviar las respuestas mediante `res.status().json()`.
+
+Los controllers disponibles son:
+
+```text
+src/controllers/services.controller.js
+src/controllers/bookings.controller.js
+```
+
+## Managers
+
+Los managers contienen la lógica relacionada con los datos y la persistencia.
+
+Sus responsabilidades incluyen:
+
+- Leer los archivos JSON.
+- Buscar recursos.
+- Crear recursos.
+- Actualizar recursos.
+- Eliminar recursos cuando corresponda.
+- Persistir los cambios mediante FileSystem.
+
+Los managers no utilizan objetos de Express como `req` o `res`.
+
+Los managers disponibles son:
+
+```text
+src/managers/ServiceManager.js
+src/managers/BookingManager.js
+```
+
+## Data
+
+Los datos son almacenados de forma persistente en:
 
 ```text
 src/data/services.json
-```
-
-Las reservas se almacenan en:
-
-```text
 src/data/bookings.json
 ```
 
+Estos archivos funcionan como sistema de persistencia de la aplicación en esta etapa del proyecto.
+
+---
+
+# Persistencia con FileSystem
+
+Los datos de la aplicación se almacenan en archivos JSON utilizando la API de Promises de FileSystem (`fs/promises`) de Node.js.
+
 Las operaciones de lectura y escritura se realizan de forma asíncrona mediante `readFile` y `writeFile` junto con `async/await`.
 
-De esta manera, las operaciones sobre archivos no utilizan métodos sincrónicos como `readFileSync` o `writeFileSync`, evitando bloquear el event loop mientras el servidor espera la finalización de las operaciones de entrada/salida.
+La persistencia utiliza:
 
-Las operaciones que modifican los datos actualizan los archivos JSON correspondientes, por lo que la información persiste aunque el servidor sea detenido y posteriormente reiniciado.
+```js
+import { readFile, writeFile } from "fs/promises";
+```
+
+Ejemplo de lectura:
+
+```js
+const data = await readFile(
+  filePath,
+  "utf-8"
+);
+```
+
+Ejemplo de escritura:
+
+```js
+await writeFile(
+  filePath,
+  JSON.stringify(data, null, 2),
+  "utf-8"
+);
+```
+
+Este enfoque evita utilizar métodos sincrónicos como `readFileSync` y `writeFileSync`, que podrían bloquear el event loop mientras Node.js espera la finalización de una operación de entrada/salida.
+
+Los cambios realizados sobre servicios y reservas son almacenados en los archivos JSON correspondientes, por lo que la información persiste después de detener y reiniciar el servidor.
 
 ---
 
@@ -123,7 +251,7 @@ Las operaciones que modifican los datos actualizan los archivos JSON correspondi
 
 Los servicios representan las prestaciones disponibles para reservar.
 
-Cada servicio posee la siguiente estructura:
+Cada servicio posee una estructura similar a:
 
 ```json
 {
@@ -157,7 +285,7 @@ Obtiene todos los servicios.
 GET /api/services
 ```
 
-También permite filtrar por categoría:
+Permite filtrar por categoría:
 
 ```http
 GET /api/services?category=Salud
@@ -185,13 +313,13 @@ Ejemplo:
 GET /api/services/1
 ```
 
-Si existe, devuelve:
+Si existe:
 
 ```text
 200 OK
 ```
 
-Si no existe, devuelve:
+Si no existe:
 
 ```text
 404 Not Found
@@ -225,8 +353,6 @@ Los campos requeridos son:
 - `category`
 - `available`
 
-Los datos son validados antes de crear el servicio.
-
 Las principales validaciones contemplan:
 
 - `name`, `description` y `category` deben ser textos.
@@ -234,13 +360,13 @@ Las principales validaciones contemplan:
 - `price` debe ser un número mayor o igual a `0`.
 - `available` debe ser un valor booleano (`true` o `false`).
 
-Si la creación es correcta, devuelve:
+Si la creación es correcta:
 
 ```text
 201 Created
 ```
 
-Si los datos enviados no son válidos o faltan campos requeridos:
+Si los datos son inválidos o faltan campos:
 
 ```text
 400 Bad Request
@@ -267,13 +393,13 @@ Body:
 
 El `id` del servicio no puede modificarse.
 
-Si el servicio existe, devuelve:
+Si existe:
 
 ```text
 200 OK
 ```
 
-Si no existe, devuelve:
+Si no existe:
 
 ```text
 404 Not Found
@@ -289,13 +415,13 @@ Ejemplo:
 DELETE /api/services/1
 ```
 
-Si el servicio existe, devuelve:
+Si existe:
 
 ```text
 200 OK
 ```
 
-Si no existe, devuelve:
+Si no existe:
 
 ```text
 404 Not Found
@@ -307,7 +433,7 @@ Si no existe, devuelve:
 
 Las reservas representan los turnos creados por los clientes.
 
-Cada reserva posee la siguiente estructura:
+Cada reserva posee una estructura similar a:
 
 ```json
 {
@@ -365,13 +491,13 @@ Una reserva puede iniciarse con el array `services` vacío.
 
 El `id` se genera automáticamente.
 
-Si la reserva se crea correctamente, devuelve:
+Si se crea correctamente:
 
 ```text
 201 Created
 ```
 
-Si faltan campos requeridos, devuelve:
+Si faltan campos requeridos:
 
 ```text
 400 Bad Request
@@ -387,7 +513,7 @@ Ejemplo:
 GET /api/bookings/1
 ```
 
-Si la reserva existe, devuelve:
+Si existe:
 
 ```text
 200 OK
@@ -416,9 +542,9 @@ Donde:
 
 No requiere body.
 
-Antes de agregar el servicio se valida que existan tanto la reserva como el servicio.
+El controller valida que la reserva exista mediante `BookingManager` y que el servicio exista mediante `ServiceManager`.
 
-La primera vez que se agrega un servicio se almacena:
+La primera vez que se agrega un servicio:
 
 ```json
 {
@@ -427,7 +553,7 @@ La primera vez que se agrega un servicio se almacena:
 }
 ```
 
-Si se vuelve a agregar el mismo servicio a la reserva, no se crea un elemento duplicado. En su lugar, se incrementa `quantity`:
+Si se vuelve a agregar el mismo servicio, no se crea un elemento duplicado. Se incrementa `quantity`:
 
 ```json
 {
@@ -436,17 +562,43 @@ Si se vuelve a agregar el mismo servicio a la reserva, no se crea un elemento du
 }
 ```
 
-Si la reserva no existe, devuelve:
+Si la reserva no existe:
 
 ```text
 404 Not Found
 ```
 
-Si el servicio no existe, también devuelve:
+Si el servicio no existe:
 
 ```text
 404 Not Found
 ```
+
+---
+
+# Controllers
+
+## `services.controller.js`
+
+El controller de servicios interactúa con `ServiceManager` e implementa:
+
+- `getServices`
+- `getServiceById`
+- `createService`
+- `updateService`
+- `deleteService`
+
+Estas funciones reciben las requests provenientes de `services.router.js`, llaman a `ServiceManager` y generan las responses correspondientes.
+
+## `bookings.controller.js`
+
+El controller de reservas interactúa principalmente con `BookingManager` e implementa:
+
+- `createBooking`
+- `getBookingById`
+- `addServiceToBooking`
+
+En `addServiceToBooking`, el controller también utiliza `ServiceManager` para comprobar que el servicio indicado por `sid` exista antes de incorporarlo a la reserva.
 
 ---
 
@@ -454,9 +606,9 @@ Si el servicio no existe, también devuelve:
 
 ## `ServiceManager`
 
-`ServiceManager` administra el recurso `services` y su persistencia en `services.json`.
+`ServiceManager` administra la lógica de datos del recurso `services`.
 
-Implementa los métodos:
+Implementa:
 
 - `getServices`
 - `getServiceById`
@@ -464,31 +616,27 @@ Implementa los métodos:
 - `updateService`
 - `deleteService`
 
-Las operaciones de lectura y escritura se realizan de forma asíncrona mediante `readFile` y `writeFile` de `fs/promises`.
-
-Los métodos del manager utilizan `async/await` para gestionar las operaciones de FileSystem sin bloquear el event loop de Node.js.
-
-Cada operación trabaja con los datos almacenados en `services.json`, manteniendo el archivo como fuente de persistencia de los servicios.
+Las operaciones de lectura y escritura se realizan de forma asíncrona sobre `services.json` mediante `fs/promises`.
 
 ## `BookingManager`
 
-`BookingManager` administra el recurso `bookings` y su persistencia en `bookings.json`.
+`BookingManager` administra la lógica de datos del recurso `bookings`.
 
-Implementa los métodos:
+Implementa:
 
 - `createBooking`
 - `getBookingById`
 - `addServiceToBooking`
 
-Al agregar un servicio a una reserva, si el servicio ya se encuentra asociado, se incrementa su propiedad `quantity`.
+Al agregar un servicio a una reserva, si ese servicio ya se encuentra asociado, se incrementa su propiedad `quantity`.
 
-Las reservas son leídas y almacenadas de forma asíncrona en `bookings.json` mediante `fs/promises` y `async/await`.
+Las operaciones son persistidas de forma asíncrona en `bookings.json`.
 
 ---
 
 # Códigos de estado HTTP
 
-La API utiliza los siguientes códigos principales:
+La API utiliza principalmente los siguientes códigos:
 
 | Código | Significado |
 |---|---|
@@ -500,54 +648,26 @@ La API utiliza los siguientes códigos principales:
 
 ---
 
-# Manejo asíncrono de archivos
-
-La persistencia utiliza la API basada en Promises de FileSystem:
-
-```js
-import { readFile, writeFile } from "fs/promises";
-```
-
-Las operaciones de entrada/salida se realizan utilizando `async/await`.
-
-Ejemplo de lectura:
-
-```js
-const data = await readFile(
-  filePath,
-  "utf-8"
-);
-```
-
-Ejemplo de escritura:
-
-```js
-await writeFile(
-  filePath,
-  JSON.stringify(data, null, 2),
-  "utf-8"
-);
-```
-
-Este enfoque permite que Node.js continúe atendiendo otras tareas mientras espera que finalicen las operaciones de entrada/salida, en lugar de bloquear el event loop mediante operaciones sincrónicas como `readFileSync` y `writeFileSync`.
-
----
-
 # Pruebas de la API
 
 Los endpoints pueden probarse utilizando herramientas como **Thunder Client** o Postman.
 
-Ejemplo de flujo de prueba:
+Un flujo de prueba posible es:
 
-1. Crear un servicio con `POST /api/services`.
-2. Crear una reserva con `POST /api/bookings`.
-3. Consultar la reserva con `GET /api/bookings/:bid`.
-4. Agregar el servicio mediante `POST /api/bookings/:bid/services/:sid`.
-5. Volver a agregar el mismo servicio para comprobar el incremento de `quantity`.
-6. Reiniciar el servidor.
-7. Consultar nuevamente los recursos para comprobar que los datos continúan almacenados en los archivos JSON.
+1. Obtener los servicios mediante `GET /api/services`.
+2. Crear un servicio mediante `POST /api/services`.
+3. Consultarlo mediante `GET /api/services/:sid`.
+4. Actualizarlo mediante `PUT /api/services/:sid`.
+5. Crear una reserva mediante `POST /api/bookings`.
+6. Consultarla mediante `GET /api/bookings/:bid`.
+7. Agregar un servicio mediante `POST /api/bookings/:bid/services/:sid`.
+8. Repetir la operación para comprobar el incremento de `quantity`.
+9. Reiniciar el servidor.
+10. Consultar nuevamente los recursos para comprobar la persistencia de los datos.
 
-## Exclusiones del repositorio
+---
+
+# Exclusiones del repositorio
 
 El proyecto utiliza `.gitignore` para evitar versionar archivos que no deben formar parte de la entrega, incluyendo:
 
@@ -557,3 +677,5 @@ node_modules/
 ```
 
 El archivo `.env.example` sí se incluye como referencia para configurar las variables de entorno necesarias.
+
+No se incluyen credenciales reales ni información sensible en el repositorio.
