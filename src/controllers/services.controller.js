@@ -1,15 +1,16 @@
-import ServiceManager from "../managers/ServiceManager.js";
+import ServicesService from "../services/services.service.js";
 
-const serviceManager = new ServiceManager();
+const servicesService = new ServicesService();
 
 export const getServices = async (req, res) => {
   try {
     const { category, available } = req.query;
 
-    const services = await serviceManager.getServices({
-      category,
-      available
-    });
+    const services =
+      await servicesService.getServices({
+        category,
+        available
+      });
 
     res.status(200).json(services);
   } catch (error) {
@@ -24,7 +25,7 @@ export const getServiceById = async (req, res) => {
     const { sid } = req.params;
 
     const service =
-      await serviceManager.getServiceById(sid);
+      await servicesService.getServiceById(sid);
 
     if (!service) {
       return res.status(404).json({
@@ -43,7 +44,9 @@ export const getServiceById = async (req, res) => {
 export const createService = async (req, res) => {
   try {
     const newService =
-      await serviceManager.addService(req.body);
+      await servicesService.createService(
+        req.body
+      );
 
     res.status(201).json(newService);
   } catch (error) {
@@ -58,7 +61,7 @@ export const updateService = async (req, res) => {
     const { sid } = req.params;
 
     const updatedService =
-      await serviceManager.updateService(
+      await servicesService.updateService(
         sid,
         req.body
       );
@@ -82,7 +85,7 @@ export const deleteService = async (req, res) => {
     const { sid } = req.params;
 
     const deletedService =
-      await serviceManager.deleteService(sid);
+      await servicesService.deleteService(sid);
 
     if (!deletedService) {
       return res.status(404).json({

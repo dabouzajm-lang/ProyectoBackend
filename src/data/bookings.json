@@ -24,7 +24,12 @@
     "date": "2026-09-15",
     "time": "18:00",
     "status": "pending",
-    "services": []
+    "services": [
+      {
+        "service": 5,
+        "quantity": 2
+      }
+    ]
   },
   {
     "id": 3,
@@ -32,6 +37,15 @@
     "clientEmail": "mariaz@email.com",
     "date": "2026-09-15",
     "time": "20:00",
+    "status": "pending",
+    "services": []
+  },
+  {
+    "id": 4,
+    "clientName": "Prueba Arquitectura",
+    "clientEmail": "prueba@email.com",
+    "date": "2026-09-15",
+    "time": "18:00",
     "status": "pending",
     "services": []
   }

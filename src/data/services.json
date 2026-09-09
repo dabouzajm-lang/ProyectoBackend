@@ -40,7 +40,16 @@
     "name": "Nutrición deportiva",
     "description": "Consulta nutricional orientada al rendimiento deportivo.",
     "duration": 45,
-    "price": 22000,
+    "price": 20000,
+    "category": "Salud",
+    "available": true
+  },
+  {
+    "id": 6,
+    "name": "Masoterapia deportiva",
+    "description": "Sesión de recuperación muscular.",
+    "duration": 45,
+    "price": 18000,
     "category": "Salud",
     "available": true
   }
