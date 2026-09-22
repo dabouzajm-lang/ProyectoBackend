@@ -81,12 +81,13 @@ class BookingsService {
 
     if (existingService) {
       existingService.quantity += 1;
-    } else {
-      booking.services.push({
+      }
+      else {
+        booking.services.push({
         service: serviceId,
         quantity: 1
       });
-}
+    }
 
     const updatedBooking =
       await bookingsRepository.update(
