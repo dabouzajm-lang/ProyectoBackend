@@ -72,23 +72,21 @@ class BookingsService {
       };
     }
 
-    const numericServiceId =
-      Number(serviceId);
-
     const existingService =
       booking.services.find(
         (item) =>
-          item.service === numericServiceId
+          item.service.toString() ===
+          serviceId.toString()
       );
 
     if (existingService) {
       existingService.quantity += 1;
     } else {
       booking.services.push({
-        service: numericServiceId,
+        service: serviceId,
         quantity: 1
       });
-    }
+}
 
     const updatedBooking =
       await bookingsRepository.update(
