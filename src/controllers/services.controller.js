@@ -48,6 +48,13 @@ export const createService = async (req, res) => {
         req.body
       );
 
+    const io = req.app.get("io");
+
+    io.emit("services:changed", {
+      action: "created",
+      serviceId: newService._id.toString()
+    });
+
     res.status(201).json(newService);
   } catch (error) {
     res.status(400).json({
@@ -71,6 +78,12 @@ export const updateService = async (req, res) => {
         error: "Servicio no encontrado"
       });
     }
+    const io = req.app.get("io");
+
+    io.emit("services:changed", {
+      action: "updated",
+      serviceId: updatedService._id.toString()
+    });
 
     res.status(200).json(updatedService);
   } catch (error) {
@@ -92,6 +105,13 @@ export const deleteService = async (req, res) => {
         error: "Servicio no encontrado"
       });
     }
+
+    const io = req.app.get("io");
+
+    io.emit("services:changed", {
+      action: "deleted",
+      serviceId: deletedService._id.toString()
+    });
 
     res.status(200).json(deletedService);
   } catch (error) {

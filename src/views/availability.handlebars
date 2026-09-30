@@ -1,0 +1,87 @@
+<section>
+
+  <h2>Disponibilidad de servicios</h2>
+
+  <h3>Servicios disponibles</h3>
+
+  <div class="services-grid">
+
+    {{#each availableServices}}
+
+      <article class="service-card">
+
+        <h4>{{this.name}}</h4>
+
+        <p>{{this.description}}</p>
+
+        <p>
+          <strong>Duración:</strong>
+          {{this.duration}} minutos
+        </p>
+
+        <p>
+          <strong>Precio:</strong>
+          ${{this.price}}
+        </p>
+
+        <p>
+          <strong>Categoría:</strong>
+          {{this.category}}
+        </p>
+
+        <span class="badge available">
+          Disponible
+        </span>
+
+      </article>
+
+    {{else}}
+
+      <p>No hay servicios disponibles.</p>
+
+    {{/each}}
+
+  </div>
+
+  <h3>Servicios no disponibles</h3>
+
+  <div class="services-grid">
+
+    {{#each unavailableServices}}
+
+      <article class="service-card">
+
+        <h4>{{this.name}}</h4>
+
+        <p>{{this.description}}</p>
+
+        <p>
+          <strong>Duración:</strong>
+          {{this.duration}} minutos
+        </p>
+
+        <p>
+          <strong>Precio:</strong>
+          ${{this.price}}
+        </p>
+
+        <p>
+          <strong>Categoría:</strong>
+          {{this.category}}
+        </p>
+
+        <span class="badge unavailable">
+          No disponible
+        </span>
+
+      </article>
+
+    {{else}}
+
+      <p>No hay servicios fuera de disponibilidad.</p>
+
+    {{/each}}
+
+  </div>
+
+</section>

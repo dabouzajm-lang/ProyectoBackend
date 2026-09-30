@@ -18,7 +18,10 @@ Esta versión representa la migración de la persistencia original basada en Fil
 - Mongoose
 - dotenv
 - Async/Await
-
+- Express Handlebars
+- Socket.io
+- HTML5
+- CSS3
 ---
 
 # Instalación
@@ -821,6 +824,68 @@ Los controllers continúan gestionando HTTP, los services mantienen las reglas d
 La modificación principal se concentra en la capa de persistencia.
 
 ---
+
+# Vistas con Handlebars
+
+El proyecto incorpora renderizado del lado del servidor mediante
+Express Handlebars.
+
+Las vistas consultan información real de MongoDB Atlas reutilizando
+la arquitectura en capas existente.
+
+## Vistas disponibles
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | /views/services | Listado completo de servicios |
+| GET | /views/availability | Servicios agrupados por disponibilidad |
+
+Las plantillas se encuentran en:
+
+- src/views/layouts/main.handlebars
+- src/views/services.handlebars
+- src/views/availability.handlebars
+
+Los controllers de vistas utilizan ServicesService para obtener
+la información, sin acceder directamente a los modelos ni a MongoDB.
+
+# Comunicación en tiempo real con Socket.io
+
+La aplicación utiliza Socket.io para comunicar cambios realizados
+sobre los servicios a los navegadores conectados.
+
+Express y Socket.io comparten el mismo servidor HTTP.
+
+## Evento implementado
+
+**services:changed**
+
+Se emite después de las siguientes operaciones exitosas:
+
+- POST /api/services
+- PUT /api/services/:sid
+- DELETE /api/services/:sid
+
+El evento incluye la acción realizada y el identificador del servicio.
+
+El cliente ubicado en src/public/js/socket.js escucha este evento
+y solicita una nueva versión de la vista actual.
+
+El HTML actualizado es renderizado por Handlebars utilizando
+información real de MongoDB.
+
+El contenido principal se reemplaza dinámicamente sin recargar
+la página completa.
+
+## Prueba de funcionamiento
+
+1. Iniciar el servidor con npm start.
+2. Abrir /views/services.
+3. Abrir /views/availability en otra pestaña.
+4. Modificar la disponibilidad de un servicio mediante Thunder Client.
+5. Verificar que ambas vistas reflejen el cambio automáticamente.
+
+La API REST original continúa funcionando y mantiene sus endpoints.
 
 # Seguridad y exclusiones del repositorio
 

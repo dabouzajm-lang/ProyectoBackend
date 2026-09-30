@@ -1,0 +1,54 @@
+<section>
+  <h2>Listado de servicios</h2>
+
+  <p>
+    Consultá los servicios registrados en nuestro sistema.
+  </p>
+
+  <div class="services-grid">
+
+    {{#each services}}
+
+      <article class="service-card">
+
+        <h3>{{this.name}}</h3>
+
+        <p>{{this.description}}</p>
+
+        <p>
+          <strong>Duración:</strong>
+          {{this.duration}} minutos
+        </p>
+
+        <p>
+          <strong>Precio:</strong>
+          ${{this.price}}
+        </p>
+
+        <p>
+          <strong>Categoría:</strong>
+          {{this.category}}
+        </p>
+
+        {{#if this.available}}
+          <span class="badge available">
+            Disponible
+          </span>
+        {{else}}
+          <span class="badge unavailable">
+            No disponible
+          </span>
+        {{/if}}
+
+      </article>
+
+    {{else}}
+
+      <p>
+        Todavía no hay servicios registrados.
+      </p>
+
+    {{/each}}
+
+  </div>
+</section>
