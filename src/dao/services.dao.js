@@ -40,6 +40,34 @@ class ServicesDAO {
 
     return await ServiceModel.findByIdAndDelete(id);
   }
+  async getPaginated(filter, options) {
+  const {
+    page,
+    limit,
+    sortBy,
+    order
+  } = options;
+
+  const skip = (page - 1) * limit;
+
+  const sort = {
+    [sortBy]: order === "desc" ? -1 : 1
+  };
+
+  const [services, total] = await Promise.all([
+    ServiceModel.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit),
+
+    ServiceModel.countDocuments(filter)
+  ]);
+
+  return {
+    services,
+    total
+  };
+}
 }
 
 export default ServicesDAO;

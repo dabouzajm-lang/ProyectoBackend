@@ -4,18 +4,15 @@ const servicesService = new ServicesService();
 
 export const getServices = async (req, res) => {
   try {
-    const { category, available } = req.query;
+    const result =
+      await servicesService.getServices(
+        req.query
+      );
 
-    const services =
-      await servicesService.getServices({
-        category,
-        available
-      });
-
-    res.status(200).json(services);
+    res.status(200).json(result);
   } catch (error) {
-    res.status(500).json({
-      error: "Error al obtener los servicios"
+    res.status(400).json({
+      error: error.message
     });
   }
 };

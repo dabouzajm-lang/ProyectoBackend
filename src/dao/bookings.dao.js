@@ -28,6 +28,14 @@ class BookingsDAO {
       }
     );
   }
+  async getByIdPopulated(id) {
+  if (!mongoose.isValidObjectId(id)) {
+    return null;
+  }
+
+  return await BookingModel.findById(id)
+    .populate("services.service");
+}
 }
 
 export default BookingsDAO;

@@ -5,7 +5,12 @@ const servicesService = new ServicesService();
 // Vista de todos los servicios
 export const renderServices = async (req, res) => {
   try {
-    const services = await servicesService.getServices();
+    const result =
+      await servicesService.getServices({
+        limit: 100
+        });
+
+    const services = result.services;
 
     res.render("services", {
       title: "Nuestros servicios",
@@ -23,11 +28,12 @@ export const renderServices = async (req, res) => {
 // Vista de disponibilidad
 export const renderAvailability = async (req, res) => {
   try {
-    const services = await servicesService.getServices();
+      const result =
+      await servicesService.getServices({
+        limit: 100
+      });
 
-    const availableServices = services.filter(
-      (service) => service.available === true
-    );
+    const services = result.services;
 
     const unavailableServices = services.filter(
       (service) => service.available === false

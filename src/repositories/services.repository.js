@@ -25,6 +25,13 @@ class ServicesRepository {
   async delete(id) {
     return await servicesDAO.delete(id);
   }
+
+  async getPaginated(filter, options) {
+    return await servicesDAO.getPaginated(
+      filter,
+      options
+    );
+  }
 }
 
 export default ServicesRepository;

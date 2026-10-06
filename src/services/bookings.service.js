@@ -99,6 +99,11 @@ class BookingsService {
 
     return updatedBooking;
   }
+  async getBookingByIdPopulated(id) {
+  return await bookingsRepository.getByIdPopulated(
+    id
+  );
+}
 }
 
 export default BookingsService;

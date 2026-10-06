@@ -2,9 +2,11 @@
 
 API REST desarrollada con **Node.js, Express, MongoDB y Mongoose** para gestionar servicios y reservas.
 
-El proyecto utiliza **MongoDB Atlas** como sistema de persistencia y está organizado mediante una arquitectura en capas que separa las responsabilidades entre routers, controllers, services, repositories y DAO.
+El proyecto utiliza **MongoDB Atlas** como sistema de persistencia y está organizado mediante una arquitectura en capas que separa las responsabilidades entre routers, middlewares de validación, controllers, services, repositories y DAO.
 
-Esta versión representa la migración de la persistencia original basada en FileSystem y archivos JSON hacia MongoDB, manteniendo los mismos endpoints y el comportamiento externo de la API.
+La aplicación incorpora consultas avanzadas con filtros, paginación y ordenamiento, validación de datos mediante **Zod**, relaciones entre colecciones mediante referencias `ObjectId` y consultas con `populate()`.
+
+También incluye vistas renderizadas con **Express Handlebars** y actualización en tiempo real mediante **Socket.io**.
 
 ---
 
@@ -16,12 +18,14 @@ Esta versión representa la migración de la persistencia original basada en Fil
 - ECMAScript Modules (ESM)
 - MongoDB Atlas
 - Mongoose
+- Zod
 - dotenv
 - Async/Await
 - Express Handlebars
 - Socket.io
 - HTML5
 - CSS3
+
 ---
 
 # Instalación
@@ -44,7 +48,7 @@ cd ProyectoBackend
 npm install
 ```
 
-Esto instalará las dependencias declaradas en `package.json`, incluyendo Express, dotenv y Mongoose.
+Esto instalará las dependencias declaradas en `package.json`, incluyendo Express, dotenv, Mongoose, Express Handlebars, Socket.io y Zod.
 
 ---
 
@@ -112,7 +116,8 @@ ProyectoBackend/
 │   │
 │   ├── controllers/
 │   │   ├── services.controller.js
-│   │   └── bookings.controller.js
+│   │   ├── bookings.controller.js
+│   │   └── views.controller.js
 │   │
 │   ├── services/
 │   │   ├── services.service.js
@@ -131,9 +136,29 @@ ProyectoBackend/
 │   │   ├── booking.model.js
 │   │   └── message.model.js
 │   │
+│   ├── validators/
+│   │   ├── service.validator.js
+│   │   └── booking.validator.js
+│   │
+│   ├── middlewares/
+│   │   └── validate.middleware.js
+│   │
 │   ├── routes/
 │   │   ├── services.router.js
-│   │   └── bookings.router.js
+│   │   ├── bookings.router.js
+│   │   └── views.router.js
+│   │
+│   ├── views/
+│   │   ├── layouts/
+│   │   │   └── main.handlebars
+│   │   ├── services.handlebars
+│   │   └── availability.handlebars
+│   │
+│   ├── public/
+│   │   ├── css/
+│   │   │   └── styles.css
+│   │   └── js/
+│   │       └── socket.js
 │   │
 │   ├── app.js
 │   └── server.js
@@ -149,12 +174,14 @@ ProyectoBackend/
 
 # Arquitectura en capas
 
-La aplicación mantiene una arquitectura en capas para separar las responsabilidades HTTP, la lógica de negocio y el acceso a datos.
+La aplicación utiliza una arquitectura en capas para separar las responsabilidades HTTP, la validación, la lógica de negocio y el acceso a datos.
 
-El flujo general es:
+El flujo general de una petición es:
 
 ```text
 Router
+   ↓
+Validation Middleware (Zod)
    ↓
 Controller
    ↓
@@ -169,20 +196,57 @@ Mongoose
 MongoDB Atlas
 ```
 
-La migración a MongoDB se realizó principalmente sobre la capa de persistencia, evitando acoplar los controllers y las reglas de negocio a una tecnología específica de almacenamiento.
+Esta separación permite modificar o ampliar una capa sin acoplar innecesariamente el resto de la aplicación.
 
 ---
 
 ## Router
 
-Los routers definen los endpoints de la API y los conectan con los controllers correspondientes.
+Los routers definen los endpoints de la API y conectan cada ruta con sus middlewares y controllers correspondientes.
 
 ```text
 src/routes/services.router.js
 src/routes/bookings.router.js
+src/routes/views.router.js
 ```
 
 No contienen reglas de negocio ni realizan consultas directas a MongoDB.
+
+---
+
+## Validation Middleware
+
+La validación de los datos de entrada se realiza mediante **Zod**.
+
+Los schemas se encuentran separados de las rutas:
+
+```text
+src/validators/service.validator.js
+src/validators/booking.validator.js
+```
+
+El middleware reutilizable se encuentra en:
+
+```text
+src/middlewares/validate.middleware.js
+```
+
+La validación se ejecuta antes del controller, evitando que datos inválidos alcancen la lógica de negocio o la capa de persistencia.
+
+Actualmente se valida:
+
+- Creación de servicios.
+- Actualización de servicios.
+- Creación de reservas.
+- Identificadores al agregar un servicio a una reserva.
+
+Cuando los datos no cumplen el schema correspondiente, la API responde con:
+
+```text
+400 Bad Request
+```
+
+junto con información clara sobre los campos inválidos.
 
 ---
 
@@ -190,27 +254,27 @@ No contienen reglas de negocio ni realizan consultas directas a MongoDB.
 
 Los controllers reciben las peticiones HTTP.
 
-Sus responsabilidades son:
+Sus responsabilidades principales son:
 
-- Leer `req.params`.
-- Leer `req.query`.
-- Leer `req.body`.
+- Leer `req.params`, `req.query` y `req.body`.
 - Llamar al service correspondiente.
 - Determinar los códigos de estado HTTP.
 - Enviar las respuestas mediante `res.status().json()`.
+- Emitir eventos de Socket.io cuando corresponde.
 
 ```text
 src/controllers/services.controller.js
 src/controllers/bookings.controller.js
+src/controllers/views.controller.js
 ```
 
-Los objetos `req` y `res` de Express se utilizan exclusivamente en esta capa.
+Los objetos `req` y `res` de Express se utilizan en esta capa.
 
 ---
 
 ## Service
 
-Los services contienen las reglas de negocio de la aplicación.
+Los services contienen la lógica de negocio y coordinan las operaciones de la aplicación.
 
 ```text
 src/services/services.service.js
@@ -219,11 +283,13 @@ src/services/bookings.service.js
 
 Entre sus responsabilidades se encuentran:
 
-- Validar los datos necesarios para crear servicios y reservas.
-- Aplicar filtros sobre servicios.
+- Construir los filtros utilizados para consultar servicios.
+- Gestionar paginación y ordenamiento.
 - Coordinar operaciones entre distintos recursos.
 - Gestionar la incorporación de servicios a una reserva.
 - Incrementar `quantity` cuando un mismo servicio se agrega más de una vez.
+
+La validación estructural de los datos de entrada se realiza previamente mediante Zod.
 
 Los services no acceden directamente a MongoDB y no utilizan `req` ni `res`.
 
@@ -263,11 +329,24 @@ Model.findById();
 Model.create();
 Model.findByIdAndUpdate();
 Model.findByIdAndDelete();
+Model.countDocuments();
 ```
 
-Los DAO no contienen reglas de negocio.
+Para las consultas avanzadas también se utilizan:
 
-También verifican el formato de los identificadores antes de realizar consultas que requieren un `ObjectId`, permitiendo mantener respuestas HTTP coherentes ante IDs inválidos.
+```js
+.sort();
+.skip();
+.limit();
+```
+
+y para resolver relaciones:
+
+```js
+.populate();
+```
+
+Los DAO también verifican el formato de los identificadores antes de realizar determinadas consultas que requieren un `ObjectId`.
 
 ---
 
@@ -301,7 +380,7 @@ La URI real de conexión nunca se almacena directamente en el código fuente.
 
 # Modelos de Mongoose
 
-La aplicación define tres modelos separados:
+La aplicación define tres modelos:
 
 ```text
 src/models/service.model.js
@@ -326,7 +405,7 @@ category
 available
 ```
 
-Ejemplo de un servicio:
+Ejemplo:
 
 ```json
 {
@@ -359,20 +438,20 @@ status
 services
 ```
 
-Ejemplo conceptual:
+Ejemplo conceptual de cómo se almacena una reserva:
 
 ```json
 {
   "_id": "ObjectId generado por MongoDB",
   "clientName": "Juan Manuel",
   "clientEmail": "juan@email.com",
-  "date": "2026-09-25",
+  "date": "2026-10-10",
   "time": "18:00",
   "status": "pending",
   "services": [
     {
       "service": "ObjectId del servicio",
-      "quantity": 2
+      "quantity": 1
     }
   ]
 }
@@ -380,9 +459,23 @@ Ejemplo conceptual:
 
 ---
 
+## Message Model
+
+El proyecto también incluye:
+
+```text
+src/models/message.model.js
+```
+
+Este modelo prepara el recurso `messages`.
+
+Actualmente no se agregaron endpoints específicos para mensajes, ya que el proyecto mantiene como recursos principales los servicios y las reservas.
+
+---
+
 # Referencias entre Booking y Service
 
-Los servicios asociados a una reserva no se almacenan como objetos completos.
+Los servicios asociados a una reserva **no se almacenan como objetos completos**.
 
 Cada elemento del array `services` posee la estructura:
 
@@ -395,7 +488,7 @@ services: [
 ]
 ```
 
-El campo `service` está definido en Mongoose mediante:
+El campo `service` está definido en Mongoose mediante una referencia:
 
 ```js
 service: {
@@ -413,7 +506,7 @@ Esto evita duplicar toda la información de un servicio dentro de cada reserva.
 
 # Regla de negocio de quantity
 
-Cuando un servicio se agrega por primera vez a una reserva, se incorpora con:
+Cuando un servicio se agrega por primera vez a una reserva:
 
 ```text
 quantity = 1
@@ -442,30 +535,18 @@ Esta regla está implementada en:
 src/services/bookings.service.js
 ```
 
-No se encuentra en el DAO ni en el modelo de Mongoose, ya que corresponde a una regla de negocio.
-
----
-
-## Message Model
-
-El proyecto también incluye el modelo:
-
-```text
-src/models/message.model.js
-```
-
-Este modelo prepara el recurso `messages` solicitado para esta etapa del proyecto.
-
-Actualmente no se agregaron endpoints nuevos para mensajes, ya que la actividad mantiene los endpoints previamente definidos para servicios y reservas.
+Al tratarse de una regla de negocio, no se encuentra en el DAO ni en el modelo de Mongoose.
 
 ---
 
 # Recurso Services
 
-El flujo de una operación de servicios es:
+El flujo de una operación relacionada con servicios es:
 
 ```text
 services.router.js
+        ↓
+validate.middleware.js
         ↓
 services.controller.js
         ↓
@@ -480,7 +561,7 @@ ServiceModel
 MongoDB Atlas
 ```
 
-Controller y Service exponen:
+Controller y Service exponen operaciones para:
 
 ```text
 getServices
@@ -490,10 +571,11 @@ updateService
 deleteService
 ```
 
-Repository y DAO exponen:
+Repository y DAO incluyen operaciones como:
 
 ```text
 getAll
+getPaginated
 getById
 create
 update
@@ -506,17 +588,30 @@ delete
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `GET` | `/api/services` | Obtiene todos los servicios |
+| `GET` | `/api/services` | Consulta servicios con filtros, paginación y ordenamiento |
 | `GET` | `/api/services/:sid` | Obtiene un servicio por ID |
 | `POST` | `/api/services` | Crea un servicio |
 | `PUT` | `/api/services/:sid` | Actualiza un servicio |
 | `DELETE` | `/api/services/:sid` | Elimina un servicio |
 
+---
+
 ## GET `/api/services`
 
-Obtiene todos los servicios almacenados en MongoDB.
+Obtiene servicios almacenados en MongoDB utilizando consultas avanzadas.
 
-Permite filtrar por categoría:
+### Query params disponibles
+
+| Parámetro | Descripción | Ejemplo |
+|---|---|---|
+| `category` | Filtra por categoría | `Salud` |
+| `available` | Filtra por disponibilidad | `true` |
+| `page` | Página solicitada | `1` |
+| `limit` | Cantidad de resultados por página | `5` |
+| `sortBy` | Campo utilizado para ordenar | `price` |
+| `order` | Dirección del ordenamiento | `asc` |
+
+Ejemplo por categoría:
 
 ```http
 GET /api/services?category=Salud
@@ -528,10 +623,74 @@ Por disponibilidad:
 GET /api/services?available=true
 ```
 
-O combinar ambos:
+Con paginación:
 
 ```http
-GET /api/services?category=Salud&available=true
+GET /api/services?page=1&limit=5
+```
+
+Ordenados por precio:
+
+```http
+GET /api/services?sortBy=price&order=asc
+```
+
+También es posible combinar todos los parámetros:
+
+```http
+GET /api/services?category=Salud&available=true&page=1&limit=5&sortBy=price&order=asc
+```
+
+Los filtros, el ordenamiento y la paginación se ejecutan mediante MongoDB/Mongoose.
+
+La respuesta contiene los servicios encontrados y los metadatos de paginación:
+
+```json
+{
+  "services": [
+    {
+      "_id": "SERVICE_ID",
+      "name": "Kinesiología",
+      "description": "Sesión de recuperación y movilidad.",
+      "duration": 50,
+      "price": 20000,
+      "category": "Salud",
+      "available": true
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "page": 1,
+    "limit": 5,
+    "totalPages": 1,
+    "hasPrevPage": false,
+    "hasNextPage": false
+  }
+}
+```
+
+El salto utilizado para la paginación se calcula mediante:
+
+```text
+(page - 1) * limit
+```
+
+Los campos admitidos para `sortBy` son:
+
+```text
+name
+duration
+price
+category
+available
+createdAt
+```
+
+Los valores admitidos para `order` son:
+
+```text
+asc
+desc
 ```
 
 ---
@@ -556,6 +715,8 @@ Si el servicio no existe o el identificador no posee un formato válido:
 
 Crea un nuevo servicio.
 
+La petición es validada mediante Zod antes de ejecutar el controller.
+
 Ejemplo:
 
 ```json
@@ -577,6 +738,12 @@ Si la creación es correcta:
 
 MongoDB genera automáticamente el campo `_id`.
 
+Si los datos son inválidos:
+
+```text
+400 Bad Request
+```
+
 ---
 
 ## PUT `/api/services/:sid`
@@ -592,13 +759,23 @@ Ejemplo:
 }
 ```
 
+La petición es validada mediante Zod.
+
+Debe enviarse al menos un campo válido para actualizar.
+
 Si existe:
 
 ```text
 200 OK
 ```
 
-Si no existe:
+Si los datos son inválidos:
+
+```text
+400 Bad Request
+```
+
+Si el servicio no existe:
 
 ```text
 404 Not Found
@@ -624,12 +801,158 @@ Si no existe:
 
 ---
 
+# Consultas avanzadas
+
+El endpoint:
+
+```text
+GET /api/services
+```
+
+permite combinar filtros, paginación y ordenamiento.
+
+La consulta se procesa a través de:
+
+```text
+Controller
+   ↓
+Service
+   ↓
+Repository
+   ↓
+DAO
+   ↓
+MongoDB
+```
+
+El DAO utiliza `find()`, `sort()`, `skip()`, `limit()` y `countDocuments()` para evitar obtener todos los documentos y paginarlos posteriormente en memoria.
+
+Ejemplo:
+
+```http
+GET /api/services?category=Salud&available=true&page=2&limit=10&sortBy=price&order=desc
+```
+
+La respuesta informa:
+
+- Cantidad total de resultados.
+- Página actual.
+- Límite por página.
+- Cantidad total de páginas.
+- Existencia de una página anterior.
+- Existencia de una página siguiente.
+
+---
+
+# Validación con Zod
+
+La API utiliza **Zod** como capa independiente de validación.
+
+Los schemas están separados de las rutas y de los modelos de Mongoose.
+
+```text
+src/validators/service.validator.js
+src/validators/booking.validator.js
+```
+
+El middleware:
+
+```text
+src/middlewares/validate.middleware.js
+```
+
+ejecuta `safeParse()` sobre los datos recibidos.
+
+Si la validación falla, la petición finaliza con:
+
+```text
+400 Bad Request
+```
+
+antes de alcanzar el controller y la capa de persistencia.
+
+---
+
+## Ejemplo de validación incorrecta de Service
+
+Petición:
+
+```json
+{
+  "name": "",
+  "description": "",
+  "duration": -30,
+  "price": -1000,
+  "category": "",
+  "available": "si"
+}
+```
+
+Respuesta conceptual:
+
+```json
+{
+  "error": "Datos inválidos",
+  "details": [
+    {
+      "field": "name",
+      "message": "El nombre es obligatorio"
+    },
+    {
+      "field": "duration",
+      "message": "La duración debe ser mayor a 0"
+    },
+    {
+      "field": "price",
+      "message": "El precio no puede ser negativo"
+    },
+    {
+      "field": "available",
+      "message": "La disponibilidad debe ser true o false"
+    }
+  ]
+}
+```
+
+---
+
+## Operaciones validadas
+
+Zod se aplica actualmente sobre:
+
+```text
+POST /api/services
+PUT /api/services/:sid
+POST /api/bookings
+POST /api/bookings/:bid/services/:sid
+```
+
+En el último endpoint, `bid` y `sid` son validados como identificadores `ObjectId`.
+
+Por ejemplo:
+
+```http
+POST /api/bookings/123/services/456
+```
+
+es rechazado con:
+
+```text
+400 Bad Request
+```
+
+antes de intentar realizar una operación sobre MongoDB.
+
+---
+
 # Recurso Bookings
 
 El flujo de una operación de reservas es:
 
 ```text
 bookings.router.js
+        ↓
+validate.middleware.js
         ↓
 bookings.controller.js
         ↓
@@ -644,19 +967,21 @@ BookingModel
 MongoDB Atlas
 ```
 
-Controller y Service exponen:
+Entre las operaciones disponibles se encuentran:
 
 ```text
 createBooking
 getBookingById
+getBookingByIdPopulated
 addServiceToBooking
 ```
 
-Repository y DAO exponen:
+Repository y DAO incluyen operaciones como:
 
 ```text
 create
 getById
+getByIdPopulated
 update
 ```
 
@@ -667,12 +992,16 @@ update
 | Método | Ruta | Descripción |
 |---|---|---|
 | `POST` | `/api/bookings` | Crea una reserva |
-| `GET` | `/api/bookings/:bid` | Obtiene una reserva por ID |
+| `GET` | `/api/bookings/:bid` | Obtiene una reserva por ID utilizando populate |
 | `POST` | `/api/bookings/:bid/services/:sid` | Agrega un servicio a una reserva |
+
+---
 
 ## POST `/api/bookings`
 
 Crea una reserva.
+
+Los datos son validados mediante Zod antes de ejecutar la lógica de negocio.
 
 Ejemplo:
 
@@ -680,10 +1009,9 @@ Ejemplo:
 {
   "clientName": "Juan Manuel",
   "clientEmail": "juan@email.com",
-  "date": "2026-09-25",
+  "date": "2026-10-10",
   "time": "18:00",
-  "status": "pending",
-  "services": []
+  "status": "pending"
 }
 ```
 
@@ -693,17 +1021,110 @@ Si se crea correctamente:
 201 Created
 ```
 
+Si los datos son inválidos:
+
+```text
+400 Bad Request
+```
+
 ---
 
 ## GET `/api/bookings/:bid`
 
 Obtiene una reserva mediante su `_id`.
 
+La consulta utiliza `populate()` de Mongoose para resolver las referencias almacenadas en:
+
+```text
+services.service
+```
+
+En MongoDB, la reserva mantiene únicamente la referencia:
+
+```json
+{
+  "service": "SERVICE_ID",
+  "quantity": 1
+}
+```
+
+Al consultar la reserva mediante la API, `populate()` devuelve los datos completos del servicio asociado.
+
+Ejemplo conceptual:
+
+```json
+{
+  "_id": "BOOKING_ID",
+  "clientName": "Juan Manuel",
+  "clientEmail": "juan@email.com",
+  "date": "2026-10-10",
+  "time": "18:00",
+  "status": "pending",
+  "services": [
+    {
+      "service": {
+        "_id": "SERVICE_ID",
+        "name": "Kinesiología",
+        "description": "Sesión de recuperación y movilidad.",
+        "duration": 50,
+        "price": 20000,
+        "category": "Salud",
+        "available": true
+      },
+      "quantity": 1
+    }
+  ]
+}
+```
+
+Esto permite mantener una estructura normalizada en MongoDB sin duplicar la información completa de cada servicio dentro de las reservas.
+
 Si la reserva no existe o el identificador no es válido:
 
 ```text
 404 Not Found
 ```
+
+---
+
+# Populate de Mongoose
+
+Para resolver la relación entre reservas y servicios se utiliza:
+
+```js
+.populate("services.service")
+```
+
+La persistencia continúa almacenando:
+
+```text
+Booking
+  ↓
+services[]
+  ↓
+service: ObjectId
+  ↓
+Service
+```
+
+Mientras que la respuesta de la API puede devolver:
+
+```text
+Booking
+  ↓
+services[]
+  ↓
+service
+  ├── _id
+  ├── name
+  ├── description
+  ├── duration
+  ├── price
+  ├── category
+  └── available
+```
+
+De esta forma se mantienen las ventajas de trabajar con referencias entre colecciones y, al mismo tiempo, se puede entregar al cliente la información completa relacionada.
 
 ---
 
@@ -719,7 +1140,9 @@ POST /api/bookings/BOOKING_ID/services/SERVICE_ID
 
 No requiere body.
 
-La capa de service comprueba la existencia de la reserva y del servicio antes de modificar la reserva.
+Los parámetros `bid` y `sid` son validados mediante Zod antes de continuar con la operación.
+
+La capa de service comprueba posteriormente la existencia de la reserva y del servicio.
 
 La primera vez:
 
@@ -745,6 +1168,12 @@ Si la reserva o el servicio no existen:
 404 Not Found
 ```
 
+Si los identificadores no tienen un formato válido:
+
+```text
+400 Bad Request
+```
+
 ---
 
 # Códigos de estado HTTP
@@ -753,7 +1182,7 @@ Si la reserva o el servicio no existen:
 |---|---|
 | `200` | Operación realizada correctamente |
 | `201` | Recurso creado correctamente |
-| `400` | Datos faltantes o inválidos |
+| `400` | Datos o parámetros inválidos |
 | `404` | Recurso no encontrado |
 | `500` | Error interno del servidor |
 
@@ -763,7 +1192,7 @@ Si la reserva o el servicio no existen:
 
 La API puede probarse mediante Thunder Client o Postman.
 
-Durante la migración se verificaron los siguientes flujos:
+Durante el desarrollo se verificaron los siguientes flujos:
 
 1. Conexión exitosa con MongoDB Atlas.
 2. Creación de servicios en MongoDB.
@@ -772,18 +1201,33 @@ Durante la migración se verificaron los siguientes flujos:
 5. Eliminación de servicios.
 6. Creación de reservas.
 7. Consulta de reservas.
-8. Asociación de un servicio mediante `ObjectId`.
+8. Asociación de servicios mediante referencias `ObjectId`.
 9. Incremento de `quantity` al agregar dos veces el mismo servicio.
-10. Persistencia de los documentos en MongoDB Atlas.
-11. Respuesta `404` frente a recursos inexistentes o identificadores inválidos.
+10. Filtrado de servicios mediante `category`.
+11. Filtrado de servicios mediante `available`.
+12. Paginación mediante `page` y `limit`.
+13. Ordenamiento mediante `sortBy` y `order`.
+14. Combinación de filtros, paginación y ordenamiento.
+15. Generación de `total`, `totalPages`, `hasPrevPage` y `hasNextPage`.
+16. Validación de creación de servicios mediante Zod.
+17. Validación de actualización de servicios mediante Zod.
+18. Validación de creación de reservas mediante Zod.
+19. Validación de `bid` y `sid` al asociar servicios a reservas.
+20. Respuestas `400 Bad Request` frente a datos inválidos.
+21. Consulta de reservas utilizando `populate()`.
+22. Obtención de los datos completos de servicios asociados a una reserva.
+23. Persistencia de las relaciones mediante referencias `ObjectId`.
+24. Renderizado de vistas con Handlebars.
+25. Actualización en tiempo real mediante Socket.io.
+26. Funcionamiento de los endpoints desarrollados en las etapas anteriores.
 
 ---
 
 # Migración desde FileSystem
 
-La versión anterior del proyecto utilizaba archivos JSON y `fs/promises` como sistema de persistencia.
+La versión inicial del proyecto utilizaba archivos JSON y `fs/promises` como sistema de persistencia.
 
-La arquitectura en capas permitió reemplazar esa implementación por MongoDB sin modificar los endpoints públicos.
+La arquitectura en capas permitió reemplazar esa implementación por MongoDB sin acoplar los controllers o las reglas de negocio a una tecnología específica.
 
 Antes:
 
@@ -806,6 +1250,8 @@ Actualmente:
 ```text
 Router
    ↓
+Validation Middleware
+   ↓
 Controller
    ↓
 Service
@@ -819,73 +1265,126 @@ Mongoose
 MongoDB Atlas
 ```
 
-Los controllers continúan gestionando HTTP, los services mantienen las reglas de negocio y los repositories continúan funcionando como abstracción del acceso a datos.
-
-La modificación principal se concentra en la capa de persistencia.
+Los controllers continúan gestionando HTTP, los services mantienen la lógica de negocio y los repositories continúan funcionando como abstracción del acceso a datos.
 
 ---
 
 # Vistas con Handlebars
 
-El proyecto incorpora renderizado del lado del servidor mediante
-Express Handlebars.
+El proyecto incorpora renderizado del lado del servidor mediante **Express Handlebars**.
 
-Las vistas consultan información real de MongoDB Atlas reutilizando
-la arquitectura en capas existente.
+Las vistas consultan información real de MongoDB Atlas reutilizando la arquitectura en capas existente.
 
 ## Vistas disponibles
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | /views/services | Listado completo de servicios |
-| GET | /views/availability | Servicios agrupados por disponibilidad |
+| `GET` | `/views/services` | Listado de servicios |
+| `GET` | `/views/availability` | Servicios agrupados por disponibilidad |
 
 Las plantillas se encuentran en:
 
-- src/views/layouts/main.handlebars
-- src/views/services.handlebars
-- src/views/availability.handlebars
+```text
+src/views/layouts/main.handlebars
+src/views/services.handlebars
+src/views/availability.handlebars
+```
 
-Los controllers de vistas utilizan ServicesService para obtener
-la información, sin acceder directamente a los modelos ni a MongoDB.
+Los controllers de vistas utilizan `ServicesService` para obtener la información, sin acceder directamente a los modelos ni a MongoDB.
+
+Las vistas fueron adaptadas para trabajar con la nueva respuesta paginada de servicios sin modificar su funcionamiento externo.
+
+---
 
 # Comunicación en tiempo real con Socket.io
 
-La aplicación utiliza Socket.io para comunicar cambios realizados
-sobre los servicios a los navegadores conectados.
+La aplicación utiliza **Socket.io** para comunicar cambios realizados sobre los servicios a los navegadores conectados.
 
 Express y Socket.io comparten el mismo servidor HTTP.
 
 ## Evento implementado
 
-**services:changed**
+```text
+services:changed
+```
 
 Se emite después de las siguientes operaciones exitosas:
 
-- POST /api/services
-- PUT /api/services/:sid
-- DELETE /api/services/:sid
+```text
+POST /api/services
+PUT /api/services/:sid
+DELETE /api/services/:sid
+```
 
 El evento incluye la acción realizada y el identificador del servicio.
 
-El cliente ubicado en src/public/js/socket.js escucha este evento
-y solicita una nueva versión de la vista actual.
+El cliente ubicado en:
 
-El HTML actualizado es renderizado por Handlebars utilizando
-información real de MongoDB.
+```text
+src/public/js/socket.js
+```
 
-El contenido principal se reemplaza dinámicamente sin recargar
-la página completa.
+escucha este evento y solicita una nueva versión de la vista actual.
 
-## Prueba de funcionamiento
+El HTML actualizado es renderizado por Handlebars utilizando información real de MongoDB.
 
-1. Iniciar el servidor con npm start.
-2. Abrir /views/services.
-3. Abrir /views/availability en otra pestaña.
+El contenido principal se reemplaza dinámicamente sin recargar la página completa.
+
+---
+
+## Prueba de funcionamiento de Socket.io
+
+1. Iniciar el servidor con `npm start`.
+2. Abrir `/views/services`.
+3. Abrir `/views/availability` en otra pestaña.
 4. Modificar la disponibilidad de un servicio mediante Thunder Client.
 5. Verificar que ambas vistas reflejen el cambio automáticamente.
 
-La API REST original continúa funcionando y mantiene sus endpoints.
+La API REST continúa funcionando junto con las vistas y la comunicación en tiempo real.
+
+---
+
+# Resumen de funcionalidades
+
+El proyecto implementa actualmente:
+
+```text
+API REST
+├── Services
+│   ├── Crear
+│   ├── Consultar
+│   ├── Actualizar
+│   ├── Eliminar
+│   ├── Filtrar
+│   ├── Paginar
+│   └── Ordenar
+│
+├── Bookings
+│   ├── Crear
+│   ├── Consultar
+│   ├── Asociar servicios
+│   ├── Referencias ObjectId
+│   ├── quantity
+│   └── populate()
+│
+├── Validación
+│   ├── Zod
+│   ├── Schemas independientes
+│   ├── Middleware reutilizable
+│   └── Errores 400
+│
+├── Persistencia
+│   ├── MongoDB Atlas
+│   └── Mongoose
+│
+├── Vistas
+│   └── Express Handlebars
+│
+└── Tiempo real
+    └── Socket.io
+```
+
+---
 
 # Seguridad y exclusiones del repositorio
 
@@ -911,3 +1410,11 @@ MONGO_URI=
 ```
 
 No se incluyen usuarios, contraseñas, URI reales de MongoDB Atlas ni otras credenciales sensibles en el repositorio.
+
+---
+
+# Autor
+
+**Juan Manuel da Bouza**
+
+Proyecto desarrollado como parte de la formación en desarrollo Backend con Node.js, Express y MongoDB.

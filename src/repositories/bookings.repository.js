@@ -19,6 +19,10 @@ class BookingsRepository {
       updatedData
     );
   }
+  async getByIdPopulated(id) {
+  return await bookingsDAO.getByIdPopulated(id);
 }
+}
+
 
 export default BookingsRepository;
