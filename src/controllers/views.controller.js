@@ -8,7 +8,7 @@ export const renderServices = async (req, res) => {
     const result =
       await servicesService.getServices({
         limit: 100
-        });
+      });
 
     const services = result.services;
 
@@ -28,12 +28,16 @@ export const renderServices = async (req, res) => {
 // Vista de disponibilidad
 export const renderAvailability = async (req, res) => {
   try {
-      const result =
+    const result =
       await servicesService.getServices({
         limit: 100
       });
 
     const services = result.services;
+
+    const availableServices = services.filter(
+      (service) => service.available === true
+    );
 
     const unavailableServices = services.filter(
       (service) => service.available === false
