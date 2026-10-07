@@ -27,13 +27,16 @@ export const createBookingSchema = z
       .trim()
       .min(1, "La hora es obligatoria"),
 
-    status: z
-      .enum([
-        "pending",
-        "confirmed",
-        "cancelled"
-      ])
-      .optional(),
+    status: z.enum(
+        [
+          "pending",
+          "confirmed",
+          "cancelled"
+        ],
+        {
+          error: "El estado debe ser pending, confirmed o cancelled"
+        }
+      ),
 
     services: z
       .array(
